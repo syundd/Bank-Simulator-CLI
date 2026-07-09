@@ -1,237 +1,324 @@
-import sqlite3
-import datetime
+import os
+from datetime import datetime
+from dotenv import load_dotenv
+import psycopg
+
+load_dotenv()
 class BankSim:
     def __init__(self):
-        self.conn=sqlite3.connect("Bank.db")
+        self.conn = psycopg.connect(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=os.getenv("DB_PORT", "5432"),
+        dbname=os.getenv("DB_NAME", "banksim_db"),
+        user=os.getenv("DB_USER", "banksim"),
+        password=os.getenv("DB_PASSWORD", ""),
+        )
         self.c = self.conn.cursor()
-        self.c.execute("""CREATE TABLE IF NOT EXISTS Bank (
+        self.c.execute("""
+        CREATE TABLE IF NOT EXISTS bank (
             login TEXT UNIQUE NOT NULL,
             password TEXT NOT NULL,
-            balance REAL DEFAULT 0.0,
-            contribution REAL DEFAULT 0.0,
-            contribution_date TEXT
-        )""")
+            balance NUMERIC(12,2) DEFAULT 0.00,
+            contribution NUMERIC(12,2) DEFAULT 0.00,
+            contribution_date TIMESTAMP
+            )
+        """)
         self.conn.commit()
         self.current_user = None
 
     def create(self):
-        login=input("Enter your new login: ").strip()
-        self.c.execute("SELECT login FROM Bank WHERE login=?", (login,))
-        if self.c.fetchone():
-            print("--Login is already taken, choose another!")
-            return self.run()
+        login = input("Enter your new login: ").strip()
         if not login:
             print("--Login must not be empty!")
             return self.run()
-        else:
-            passw=input("Enter your a new password: ").strip()
-        if not passw:
+
+        self.c.execute("SELECT login FROM bank WHERE login = %s", (login,))
+        if self.c.fetchone():
+            print("--Login is already taken, choose another!")
+            return self.run()
+
+        password = input("Enter your new password: ").strip()
+        if not password:
             print("--Password must not be empty!")
             return self.run()
-        else:
-            self.c.execute("INSERT INTO Bank (login, password) VALUES (?, ?)", (login, passw))
-            print("\n---Account is successfully created!")
-            self.current_user = login
-            return self.menu()
-        
+
+        self.c.execute(
+            "INSERT INTO bank (login, password) VALUES (%s, %s)",
+            (login, password)
+        )
+        self.conn.commit()
+        print("\n--- Account is successfully created!")
+        self.current_user = login
+        return self.menu()
+
     def sign_in(self):
         print("\n--- ENTER IN SYSTEM ---")
         login = input("Enter your login: ").strip()
         password = input("Enter your password: ").strip()
+
         if not login or not password:
-            print(" Fields cannot be empty!")
+            print("--Fields cannot be empty!")
             return self.run()
-        self.c.execute("SELECT login FROM Bank WHERE login=? AND password=?", (login, password))
+
+        self.c.execute(
+            "SELECT login FROM bank WHERE login = %s AND password = %s",
+            (login, password)
+        )
         if self.c.fetchone():
-            print("\n---Successfully signed in!")
+            print("\n--- Successfully signed in!")
             self.current_user = login
             return self.menu()
-        else:
-            print("--Wrong login or password!")
-            return self.run()
-                
+
+        print("--Wrong login or password!")
+        return self.run()
+
     def run(self):
         print("Hello there! This is Bank Simulator!")
-        print("*1. Sign in \n*2.Create an account")
-        cho=input("Enter the choice: ").strip()
-        if cho=='1':
+        print("1. Sign in")
+        print("2. Create an account")
+        choice = input("Enter the choice: ").strip()
+
+        if choice == "1":
             return self.sign_in()
-        if cho=="2":
+        elif choice == "2":
             return self.create()
+        else:
+            print("Enter only 1 or 2!")
+            return self.run()
 
     def menu(self):
-        print(f"\n-- MENU (Logged in as: {self.current_user}) --")
-        print("*1.Add amount to account")
-        print("*2.Withdraw of balance")
-        print("*3.Move money to other people")
-        print("*4.Move your money to contribution")
-        print("*5.Check the balance")
-        print("*6.Save and exit")
         while True:
-            choice=input("Enter the choice: ").strip()
-            if choice=="1":
+            print(f"\n-- MENU (Logged in as: {self.current_user}) --")
+            print("1. Add amount to account")
+            print("2. Withdraw from balance")
+            print("3. Transfer money to another user")
+            print("4. Move money to savings")
+            print("5. Check the balance")
+            print("6. Save and exit")
+
+            choice = input("Enter the choice: ").strip()
+
+            if choice == "1":
                 self.add()
-            if choice=="2":
-                return self.withdraw()
-            if choice=="3":
-                return self.people()
-            if choice=="4":
+            elif choice == "2":
+                self.withdraw()
+            elif choice == "3":
+                self.people()
+            elif choice == "4":
                 self.contribution()
-            if choice=="5":
-                return self.check()
-            if choice=="6":
-                print("\n---Goodbye!")
+            elif choice == "5":
+                self.check()
+            elif choice == "6":
+                print("\n--- Goodbye!")
+                self.conn.close()
                 break
             else:
                 print("Enter only 1-6!")
-        
+
     def add(self):
-        print("\n--- AMOUNT TO YOUR ACCOUNT ---")
+        print("\n--- ADD MONEY ---")
         try:
-            addm = float(input("Enter the amount to your account: "))
-            if addm <= 0:
-                print("--Amount gotta be more than 0")
-            else:
-                self.c.execute("UPDATE Bank SET balance = balance + ? WHERE login = ?", (addm, self.current_user))
-                self.conn.commit()
-                print("\n--Amount successfully added!")
+            amount = float(input("Enter the amount to add: "))
+            if amount <= 0:
+                print("--Amount must be more than 0")
+                return
+
+            self.c.execute(
+                "UPDATE bank SET balance = balance + %s WHERE login = %s",
+                (amount, self.current_user)
+            )
+            self.conn.commit()
+            print("--Amount successfully added!")
         except ValueError:
             print("--Only numbers!")
-            
-        return self.menu()
-            
+
     def withdraw(self):
-        print("\n--- WITHDRAW OF YOUR ACCOUNT ---")
+        print("\n--- WITHDRAW MONEY ---")
         try:
-            self.c.execute("SELECT balance FROM Bank WHERE login = ?", (self.current_user,))
-            current_balance = self.c.fetchone()[0]
-            addm = float(input("Enter the withdraw of your account: "))
-            if current_balance<addm:
-                print("You have not enough money on account!")
-            elif addm <= 0:
-                print("--The Withdraw gotta be more than 0")
+            self.c.execute("SELECT balance FROM bank WHERE login = %s", (self.current_user,))
+            row = self.c.fetchone()
+            if not row:
+                print("--User not found")
+                return
+
+            current_balance = float(row[0])
+            amount = float(input("Enter the withdraw amount: "))
+
+            if amount <= 0:
+                print("--Amount must be more than 0")
+            elif current_balance < amount:
+                print("--You have not enough money on account!")
             else:
-                self.c.execute("UPDATE Bank SET balance = balance - ? WHERE login = ?", (addm, self.current_user))
+                self.c.execute(
+                    "UPDATE bank SET balance = balance - %s WHERE login = %s",
+                    (amount, self.current_user)
+                )
                 self.conn.commit()
-                print(" \n---The withdraw successfully done!")
+                print("--The withdraw successfully done!")
         except ValueError:
             print("--Only numbers!")
-            
-        return self.menu()
-    
+
     def people(self):
-        other_p=input("Enter who you wanna send the amount: ")
-        self.c.execute("SELECT login FROM Bank WHERE login=? ", (other_p,))
-        if self.c.fetchone():
-            print("-Person is found!")
-            self.c.execute("SELECT balance FROM Bank WHERE login = ?", (self.current_user,))
-            current_balance = self.c.fetchone()[0]
-            try:
-                mon=int(input(f"Enter how much you wanna send to this person *{other_p}*: "))
-                if current_balance<mon:
-                    print("--You have not enough money on account!")
-                else:
-                    self.c.execute("UPDATE Bank SET balance = balance + ? WHERE login =?", (mon, other_p))
-                    self.c.execute("UPDATE Bank SET balance = balance - ? WHERE login =?", (mon, self.current_user))
-                    self.conn.commit()
-            except ValueError:
-                print("--Only numbers!")
-        else:
+        other_user = input("Enter who you wanna send the amount: ").strip()
+        if not other_user:
+            print("--Login cannot be empty!")
+            return
+
+        self.c.execute("SELECT login FROM bank WHERE login = %s", (other_user,))
+        if not self.c.fetchone():
             print("--Person is not found, try again")
-            input(f"Enter how much you wanna send to this person *{other_p}*: ").strip()
-            
-        return self.menu()
-            
+            return
+
+        print("-Person is found!")
+        try:
+            self.c.execute("SELECT balance FROM bank WHERE login = %s", (self.current_user,))
+            row = self.c.fetchone()
+            if not row:
+                print("--User not found")
+                return
+
+            current_balance = float(row[0])
+            amount = float(input(f"Enter how much you wanna send to {other_user}: "))
+
+            if amount <= 0:
+                print("--Amount must be more than 0")
+            elif current_balance < amount:
+                print("--You have not enough money on account!")
+            else:
+                self.c.execute(
+                    "UPDATE bank SET balance = balance + %s WHERE login = %s",
+                    (amount, other_user)
+                )
+                self.c.execute(
+                    "UPDATE bank SET balance = balance - %s WHERE login = %s",
+                    (amount, self.current_user)
+                )
+                self.conn.commit()
+                print("--Money successfully transferred!")
+        except ValueError:
+            print("--Only numbers!")
+
     def check(self):
-        print("\n---CHECK BALANCE---")
-        self.c.execute("SELECT balance FROM Bank WHERE login=?", (self.current_user,))
-        result=self.c.fetchone()
-        if result:
-            print(f"Your balance now: {result[0]}")
+        print("\n--- CHECK BALANCE ---")
+        self.c.execute("SELECT balance FROM bank WHERE login = %s", (self.current_user,))
+        row = self.c.fetchone()
+        if row:
+            print(f"Your balance now: {float(row[0]):.2f}")
         else:
             print("--Error! User not found")
-            
-        return self.menu()
-    
+
     def contribution(self):
-        from datetime import datetime
-        print("\n--CONTRIBUTION MANAGMENT--")
-        self.c.execute("SELECT contribution, contribution_date FROM Bank WHERE login = ?", (self.current_user,))
-        contrib, contrib_date_str = self.c.fetchone()
-        if contrib > 0 and contrib_date_str:
-            last_date = datetime.strptime(contrib_date_str, "%Y-%m-%d %H:%M:%S")
+        print("\n--- CONTRIBUTION MANAGEMENT ---")
+        self.c.execute(
+            "SELECT contribution, contribution_date FROM bank WHERE login = %s",
+            (self.current_user,)
+        )
+        row = self.c.fetchone()
+        if not row:
+            print("--Error! User not found")
+            return
+
+        contrib, contrib_date = row
+        contrib = float(contrib)
+
+        if contrib > 0 and contrib_date:
             now = datetime.now()
-            time_passed=now-last_date
-            
-            #test (one week for a 10 sec)
-            weeks_passed = int(time_passed.total_seconds() // 10) #604800 it is week
-                
-            if weeks_passed>0:
-                precent=0.05
-                for _ in range(weeks_passed):
-                    contrib=contrib + (contrib*precent)
-                    
-                new_date_str = now.strftime("%Y-%m-%d %H:%M:%S")
-                self.c.execute("UPDATE Bank SET contribution = ?, contribution_date = ? WHERE login = ?", (contrib, new_date_str, self.current_user))
+            time_passed = now - contrib_date
+            periods_passed = int(time_passed.total_seconds() // 10)
+
+            if periods_passed > 0:
+                percent = 0.05
+                for _ in range(periods_passed):
+                    contrib += contrib * percent
+
+                self.c.execute(
+                    "UPDATE bank SET contribution = %s, contribution_date = %s WHERE login = %s",
+                    (contrib, now, self.current_user)
+                )
                 self.conn.commit()
-                print(f"You have new amount of you contribution by precent: {contrib}! Weeks passed: {weeks_passed}")
-            
+                print(f"You have new contribution amount: {contrib:.2f}. Periods passed: {periods_passed}")
+
         print(f"Your savings account: {contrib:.2f}")
         print("1. Put money into contribution")
-        print("2. Withdraw money out of contribution")
+        print("2. Withdraw money from contribution")
         print("3. Back to main menu")
+
         choice = input("Choice: ").strip()
+
         if choice == "1":
             try:
-                amount = float(input("How much to deposit? ")).strip()
-  
-                self.c.execute("SELECT balance FROM Bank WHERE login = ?", (self.current_user,))
-                current_balance = self.c.fetchone()[0]
-                
+                amount = float(input("How much to deposit? "))
+                if amount <= 0:
+                    print("--Amount must be more than 0")
+                    return
+
+                self.c.execute("SELECT balance FROM bank WHERE login = %s", (self.current_user,))
+                row = self.c.fetchone()
+                if not row:
+                    print("--User not found")
+                    return
+
+                current_balance = float(row[0])
                 if amount > current_balance:
                     print("--Not enough money on main balance!")
-                elif amount <= 0:
-                    print("--Amount must be more than 0")
-                else:
-                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    self.c.execute("""UPDATE Bank SET 
-                                      balance = balance - ?, 
-                                      contribution = contribution + ?, 
-                                      contribution_date = ? 
-                                      WHERE login = ?""", (amount, amount, now_str, self.current_user))
-                    self.conn.commit()
-                    print("---Money moved to contribution! Percentages started ticking.")
-                    return self.contribution()
+                    return
+
+                now = datetime.now()
+                self.c.execute(
+                    """
+                    UPDATE bank SET
+                        balance = balance - %s,
+                        contribution = contribution + %s,
+                        contribution_date = %s
+                    WHERE login = %s
+                    """,
+                    (amount, amount, now, self.current_user)
+                )
+                self.conn.commit()
+                print("---Money moved to contribution! Interest timer started.")
             except ValueError:
-                print("Only numbers!")
-                
-        if choice == "2":
+                print("--Only numbers!")
+
+        elif choice == "2":
             try:
-                amount=float(input("Enter how much you wanna withdraw: ")).strip()
-                self.c.execute("SELECT contribution FROM Bank WHERE login = ?", (self.current_user,))
-                current_balance = self.c.fetchone()[0]
-                
-                if amount==0:
-                    print("You no have money on your contribution!")
-                elif amount <= 0:
+                amount = float(input("Enter how much you wanna withdraw: "))
+                if amount <= 0:
                     print("--Amount must be more than 0")
-                else:
-                    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    self.c.execute("""UPDATE Bank SET 
-                                      balance = balance + ?, 
-                                      contribution = contribution - ?, 
-                                      contribution_date = ? 
-                                      WHERE login = ?""", (amount, amount, now_str, self.current_user))
-                    self.conn.commit()
-                    print("---Money moved to account!")
-                    return self.contribution()
+                    return
+
+                self.c.execute("SELECT contribution FROM bank WHERE login = %s", (self.current_user,))
+                row = self.c.fetchone()
+                if not row:
+                    print("--User not found")
+                    return
+
+                current_contribution = float(row[0])
+                if amount > current_contribution:
+                    print("--Not enough money on your contribution!")
+                    return
+
+                now = datetime.now()
+                self.c.execute(
+                    """
+                    UPDATE bank SET
+                        balance = balance + %s,
+                        contribution = contribution - %s,
+                        contribution_date = %s
+                    WHERE login = %s
+                    """,
+                    (amount, amount, now, self.current_user)
+                )
+                self.conn.commit()
+                print("---Money moved to account!")
             except ValueError:
-                print("Only numbers!")
-                
-        if choice == "3":
-            return self.menu()
-                
-        
+                print("--Only numbers!")
+
+        elif choice == "3":
+            return
+        else:
+            print("Enter only 1-3!")
+
+
 if __name__ == "__main__":
     bank = BankSim()
     bank.run()
