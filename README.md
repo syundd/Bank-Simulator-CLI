@@ -9,7 +9,7 @@ A terminal-based banking simulator written in Python with PostgreSQL running in 
 
 ## Features
 
-- **User Authentication**: Simple sign-up and sign-in using login and password.
+- **User Authentication**: Simple sign-up and sign-in using a login and password.
 - **Balance Management**: Add funds to or withdraw from your main account.
 - **Inter-user Transfers**: Seamlessly transfer money to another user by their login.
 - **Savings System (Contributions)**: Move money to a savings account and watch it grow.
@@ -29,25 +29,27 @@ A terminal-based banking simulator written in Python with PostgreSQL running in 
 
 ## Database Schema (PostgreSQL)
 
-  ┌──────────────┐          ┌──────────────┐
-  │    users     │          │   accounts   │
-  ├──────────────┤          ├──────────────┤
-  │ id (PK)  ───┼─────────>│ id (PK)      │
-  │ login        │ 1:1      │ user_id (FK) │
-  │ password     │          │ balance      │
-  └──────────────┘          └──────┬───────┘
-         │                         │
-         │ 1:N                     │ 1:1 (Optional)
-         ▼                         ▼
-  ┌──────────────┐          ┌───────────────┐
-  │ transactions │          │ contributions │
-  ├──────────────┤          ├───────────────┤
-  │ id (PK)      │          │ id (PK)       │
-  │ from_user_id │          │ account_id(FK)│
-  │ to_user_id   │          │ amount        │
-  │ amount       │          │ percent       │
-  │ created_at   │          │ created_at    │
-  └──────────────┘          └───────────────┘
+```text
+       ┌──────────────┐                  ┌──────────────┐
+       │    users     │                  │   accounts   │
+       ├──────────────┤                  ├──────────────┤
+       │ id (PK)  ────┼─────────────────>│ id (PK)      │
+       │ login        │ 1:1              │ user_id (FK) │
+       │ password     │                  │ balance      │
+       └──────┬───────┘                  └──────┬───────┘
+              │                                 │
+              │ 1:N                             │ 1:1 (Optional)
+              ▼                                 ▼
+       ┌──────────────┐                  ┌───────────────┐
+       │ transactions │                  │ contributions │
+       ├──────────────┤                  ├───────────────┤
+       │ id (PK)      │                  │ id (PK)       │
+       │ from_user_id │                  │ account_id(FK)│
+       │ to_user_id   │                  │ amount        │
+       │ amount       │                  │ percent       │
+       │ created_at   │                  │ created_at    │
+       └──────────────┘                  └───────────────┘
+```
 
 ---
 
@@ -57,34 +59,35 @@ A terminal-based banking simulator written in Python with PostgreSQL running in 
 
 Make sure to install the required libraries:
 
+```bash
 pip install -r requirements.txt
+```
 
 ### 2. Create `.env`
 
 Create a `.env` file in your project root folder:
 
+```env
 DB_HOST=localhost
 DB_PORT=5433
-DB_NAME=YOUR DB NAME
-DB_USER=YOUR LOGIN
-DB_PASSWORD=YOUR PASSWORD
+DB_NAME=YOUR_DB_NAME
+DB_USER=YOUR_LOGIN
+DB_PASSWORD=YOUR_PASSWORD
+```
 
 ### 3. Start PostgreSQL in Docker
 
 Run this command to spin up your database container on port 5433:
 
-docker run -d \
-  --name banksim-postgres \
-  -e POSTGRES_USER="YOUR LOGIN" \
-  -e POSTGRES_PASSWORD="YOUR PASSWORD" \
-  -e POSTGRES_DB="YOUR DB" \
-  -p 5433:5432 \
-  -v banksim_pgdata:/var/lib/postgresql/data \
-  postgres:16
+```bash
+docker run -d   --name banksim-postgres   -e POSTGRES_USER="YOUR_LOGIN"   -e POSTGRES_PASSWORD="YOUR_PASSWORD"   -e POSTGRES_DB="YOUR_DB_NAME"   -p 5433:5432   -v banksim_pgdata:/var/lib/postgresql/data   postgres:16
+```
 
 ### 4. Run the app
 
+```bash
 python bank.py
+```
 
 ---
 
@@ -97,25 +100,29 @@ python bank.py
 
 Add these to your `requirements.txt`:
 
+```text
 psycopg[binary]
 python-dotenv
+```
 
 ---
 
 ## Project Structure
 
+```text
 project/
 ├── bank.py
 ├── .env
 ├── .gitignore
 ├── requirements.txt
 └── README.md
+```
 
 ---
 
 ## Notes
 
-- **Password Storage**: Passwords are stored in plain text in this version.
+- **Password Storage**: Passwords are stored in plain text in this version (designed for educational purposes).
 - **Dockerized Storage**: Database volume mapping (`banksim_pgdata`) ensures your simulated bank accounts remain safe even if the Docker container is stopped or removed.
 
 ## Author
