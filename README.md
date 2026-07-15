@@ -5,125 +5,119 @@
 ![Docker](https://img.shields.io/badge/Docker-used-2496ED?logo=docker&logoColor=white)
 ![Status](https://img.shields.io/badge/Status-Study%20Project-success)
 
-A terminal-based banking simulator written in Python with PostgreSQL running in Docker.
+A terminal-based banking simulator written in Python with PostgreSQL running in Docker. Now upgraded with a normalized database schema consisting of four connected tables.
 
 ## Features
 
-- Create a new account.
-- Sign in with login and password.
-- Add money to your main balance.
-- Withdraw money from your main balance.
-- Transfer money to another user.
-- Move money to a savings account.
-- Savings balance grows over time.
-- For testing, interest is applied every 10 seconds instead of one real week.
-- Check your current balance.
-- Store data in PostgreSQL instead of SQLite.
-- Keep sensitive settings in a `.env` file.
+- **User Authentication**: Simple sign-up and sign-in using login and password.
+- **Balance Management**: Add funds to or withdraw from your main account.
+- **Inter-user Transfers**: Seamlessly transfer money to another user by their login.
+- **Savings System (Contributions)**: Move money to a savings account and watch it grow.
+- **Transaction Ledger**: Every single transfer is securely logged in a dedicated history table.
+- **Fast Testing Mode**: Interest on savings accumulates every 10 seconds (for demonstration/testing purposes) instead of one real-world week.
 
-## What's new
+---
 
-- Replaced SQLite with PostgreSQL.
-- Connected the app to a PostgreSQL container in Docker.
-- Moved database settings into `.env`.
-- Added `requirements.txt` for easy dependency installation.
-- Added `.gitignore` to keep secrets and cache files out of Git.
-- Improved money display formatting with 2 decimal places.
+## 🚀 What's New (v2.0)
+
+- **Database Normalization (4 Connected Tables)**: Split the single database table into four distinct, logically linked tables (`users`, `accounts`, `transactions`, `contributions`).
+- **ID-Based Internal Logic**: Replaced old text-based query references with auto-incrementing integer IDs (`SERIAL PRIMARY KEY`).
+- **Data Integrity**: Handled clean record removal using `ON DELETE CASCADE` foreign keys.
+- **Detailed Transactions**: Added a separate table to keep track of all user-to-user transfers.
+
+---
+
+## Database Schema (PostgreSQL)
+
+  ┌──────────────┐          ┌──────────────┐
+  │    users     │          │   accounts   │
+  ├──────────────┤          ├──────────────┤
+  │ id (PK)  ───┼─────────>│ id (PK)      │
+  │ login        │ 1:1      │ user_id (FK) │
+  │ password     │          │ balance      │
+  └──────────────┘          └──────┬───────┘
+         │                         │
+         │ 1:N                     │ 1:1 (Optional)
+         ▼                         ▼
+  ┌──────────────┐          ┌───────────────┐
+  │ transactions │          │ contributions │
+  ├──────────────┤          ├───────────────┤
+  │ id (PK)      │          │ id (PK)       │
+  │ from_user_id │          │ account_id(FK)│
+  │ to_user_id   │          │ amount        │
+  │ amount       │          │ percent       │
+  │ created_at   │          │ created_at    │
+  └──────────────┘          └───────────────┘
+
+---
 
 ## How to Run
 
 ### 1. Install dependencies
 
-```bash
+Make sure to install the required libraries:
+
 pip install -r requirements.txt
-```
 
 ### 2. Create `.env`
 
-Create a file named `.env` in the project root:
+Create a `.env` file in your project root folder:
 
-```env
 DB_HOST=localhost
 DB_PORT=5433
 DB_NAME=YOUR DB NAME
 DB_USER=YOUR LOGIN
 DB_PASSWORD=YOUR PASSWORD
-```
 
 ### 3. Start PostgreSQL in Docker
 
-```bash
+Run this command to spin up your database container on port 5433:
+
 docker run -d \
   --name banksim-postgres \
-  -e POSTGRES_USER=YOUR LOGIN \
-  -e POSTGRES_PASSWORD=YOUR PASSWORD\
-  -e POSTGRES_DB=YOUR DB \
+  -e POSTGRES_USER="YOUR LOGIN" \
+  -e POSTGRES_PASSWORD="YOUR PASSWORD" \
+  -e POSTGRES_DB="YOUR DB" \
   -p 5433:5432 \
   -v banksim_pgdata:/var/lib/postgresql/data \
   postgres:16
-```
 
 ### 4. Run the app
 
-```bash
-python3 bank.py
-```
+python bank.py
 
-## Project Logic
-
-The app stores users in PostgreSQL, and the Python code connects to it through Docker using `localhost:5433`.
-
-Each account has:
-- login
-- password
-- balance
-- contribution
-- contribution date
-
-After signing in, you can manage your money through the terminal menu.
-
-## Main Actions
-
-- Add money to your balance.
-- Withdraw money from your balance.
-- Send money to another user.
-- Deposit money into savings.
-- Withdraw money from savings.
-- Check your balance.
-- Save and exit.
-
-## Savings System
-
-The savings account uses a simplified test mode.
-
-For demo purposes, interest is applied every 10 seconds instead of one week, so the feature is easier to test and demonstrate.
+---
 
 ## Requirements
 
-- Python 3
+- Python 3.x
 - Docker
-- PostgreSQL runs in a container
-- `psycopg[binary]`
-- `python-dotenv`
+- `psycopg` (for database connection)
+- `python-dotenv` (for loading environment variables)
+
+Add these to your `requirements.txt`:
+
+psycopg[binary]
+python-dotenv
+
+---
 
 ## Project Structure
 
-```text
 project/
 ├── bank.py
 ├── .env
 ├── .gitignore
 ├── requirements.txt
 └── README.md
-```
+
+---
 
 ## Notes
 
-- Passwords are stored in plain text in this version.
-- The interest timing is accelerated for testing.
-- PostgreSQL runs in Docker, while the app itself runs on your laptop.
-- If port `5432` is busy, `5433:5432` avoids the conflict.
+- **Password Storage**: Passwords are stored in plain text in this version.
+- **Dockerized Storage**: Database volume mapping (`banksim_pgdata`) ensures your simulated bank accounts remain safe even if the Docker container is stopped or removed.
 
 ## Author
 
-Made as a learning project for practicing Python, OOP, Docker, and PostgreSQL.
+Made as an advanced learning project to practice Python OOP, relational database design (PostgreSQL), and Docker environments.
